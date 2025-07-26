@@ -1,13 +1,45 @@
 import ee # type: ignore
 
+# def get_sentinel2_collection(roi, cloud_cover_max=10):
+#     """
+#     Fetch Sentinel-2 Harmonized collection with cloud filtering.
+#     """
+#     return ee.ImageCollection('COPERNICUS/S2_HARMONIZED') \
+#         .filterBounds(roi) \
+#         .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', cloud_cover_max)) \
+#         .select(['B4', 'B3', 'B2', 'B8', 'B11', 'QA60'])
+
+# def check_full_coverage(image, roi, error_margin=10):
+#     """
+#     Check if an image fully contains the ROI.
+#     """
+#     contains_roi = image.geometry().contains(roi, ee.ErrorMargin(error_margin))
+#     return image.set('contains_roi', contains_roi)
+
+# def filter_full_coverage(collection, roi):
+#     """
+#     Filter images that fully cover the ROI.
+#     """
+#     collection_with_full_coverage = collection.map(lambda img: check_full_coverage(img, roi))
+#     return collection_with_full_coverage.filter(ee.Filter.eq('contains_roi', True))
+
+# def add_ndwi_and_mask_water(image):
+#     """
+#     Computes NDWI and masks water regions.
+#     """
+#     ndwi = image.normalizedDifference(['B3', 'B8']).rename('NDWI')
+#     water_mask = ndwi.gt(0)
+#     masked_image = image.updateMask(water_mask.Not())
+#     return masked_image.addBands(ndwi)
 def get_sentinel2_collection(roi, cloud_cover_max=10):
     """
     Fetch Sentinel-2 Harmonized collection with cloud filtering.
     """
-    return ee.ImageCollection('COPERNICUS/S2_HARMONIZED') \
+    return ee.ImageCollection('LANDSAT/LC08/C02/T1_L2') \
         .filterBounds(roi) \
-        .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', cloud_cover_max)) \
-        .select(['B4', 'B3', 'B2', 'B8', 'B11', 'QA60'])
+        .filter(ee.Filter.lt('CLOUD_COVER_LAND', cloud_cover_max)) \
+        .select(['SR_B4', 'SR_B3', 'SR_B2', 'SR_B5', 'SR_B6', 'QA_PIXEL'])
+# select(['B4', 'B3', 'B2', 'B8', 'B11', 'QA60'])
 
 def check_full_coverage(image, roi, error_margin=10):
     """
@@ -27,10 +59,11 @@ def add_ndwi_and_mask_water(image):
     """
     Computes NDWI and masks water regions.
     """
-    ndwi = image.normalizedDifference(['B3', 'B8']).rename('NDWI')
+    ndwi = image.normalizedDifference(['SR_B3', 'SR_B5']).rename('NDWI')
     water_mask = ndwi.gt(0)
     masked_image = image.updateMask(water_mask.Not())
     return masked_image.addBands(ndwi)
+
 
 def load_dem_and_morpho(roi):
     """
@@ -151,6 +184,89 @@ def process_sentinel2_data(roi, start_year, end_year, SUMMER_START, SUMMER_END,
     return final_collection, morpho
 
 
+# def get_cloud_percentage(image, roi):
+#     """
+#     Computes the percentage of clouds inside the ROI using the QA60 cloud mask.
+    
+#     Parameters:
+#     - image: Sentinel-2 image (Earth Engine Image)
+#     - roi: Region of Interest (Earth Engine Geometry)
+
+#     Returns:
+#     - cloud_percentage (ee.Number): Percentage of clouds within the ROI (returns 0 if no data)
+#     """
+
+#     # Extract the QA60 cloud mask band (1 = cloud, 0 = clear)
+#     cloud_mask = image.select('QA60').gt(0)
+
+#     # Compute the total number of pixels in the ROI
+#     total_pixels = cloud_mask.reduceRegion(
+#         reducer=ee.Reducer.count(),
+#         geometry=roi,
+#         scale=30,
+#         bestEffort=True
+#     ).get('QA60')
+
+#     # Compute the number of cloudy pixels in the ROI
+#     cloud_pixels = cloud_mask.reduceRegion(
+#         reducer=ee.Reducer.sum(),
+#         geometry=roi,
+#         scale=30,
+#         bestEffort=True
+#     ).get('QA60')
+
+#     # Handle cases where no valid pixels exist
+#     total_pixels = ee.Algorithms.If(ee.Algorithms.IsEqual(total_pixels, None), ee.Number(1), total_pixels)
+#     cloud_pixels = ee.Algorithms.If(ee.Algorithms.IsEqual(cloud_pixels, None), ee.Number(0), cloud_pixels)
+
+#     # Compute cloud percentage: (cloud pixels / total pixels) * 100
+#     cloud_percentage = ee.Number(cloud_pixels).divide(ee.Number(total_pixels)).multiply(100)
+
+#     return cloud_percentage
+
+# def get_snow_percentage(image, roi):
+#     """
+#     Computes the percentage of snow-covered area inside the ROI using the NDSI (Normalized Difference Snow Index).
+    
+#     Parameters:
+#     - image: Sentinel-2 image (Earth Engine Image)
+#     - roi: Region of Interest (Earth Engine Geometry)
+
+#     Returns:
+#     - snow_percentage (ee.Number): Percentage of snow within the ROI (returns 0 if no data)
+#     """
+
+#     # Compute the Normalized Difference Snow Index (NDSI)
+#     # NDSI = (Green - SWIR) / (Green + SWIR)
+#     ndsi = image.normalizedDifference(['B3', 'B11']).rename('NDSI')
+
+#     # Define the snow threshold (commonly used threshold: NDSI > 0.4)
+#     snow_mask = ndsi.gt(0.4)
+
+#     # Compute the total number of pixels in the ROI
+#     total_pixels = snow_mask.reduceRegion(
+#         reducer=ee.Reducer.count(),
+#         geometry=roi,
+#         scale=30,
+#         bestEffort=True
+#     ).get('NDSI')
+
+#     # Compute the number of snow-covered pixels in the ROI
+#     snow_pixels = snow_mask.reduceRegion(
+#         reducer=ee.Reducer.sum(),
+#         geometry=roi,
+#         scale=30,
+#         bestEffort=True
+#     ).get('NDSI')
+
+#     # Handle cases where no valid pixels exist
+#     total_pixels = ee.Algorithms.If(ee.Algorithms.IsEqual(total_pixels, None), ee.Number(1), total_pixels)
+#     snow_pixels = ee.Algorithms.If(ee.Algorithms.IsEqual(snow_pixels, None), ee.Number(0), snow_pixels)
+
+#     # Compute snow percentage: (snow pixels / total pixels) * 100
+#     snow_percentage = ee.Number(snow_pixels).divide(ee.Number(total_pixels)).multiply(100)
+
+#     return snow_percentage
 def get_cloud_percentage(image, roi):
     """
     Computes the percentage of clouds inside the ROI using the QA60 cloud mask.
@@ -164,7 +280,10 @@ def get_cloud_percentage(image, roi):
     """
 
     # Extract the QA60 cloud mask band (1 = cloud, 0 = clear)
-    cloud_mask = image.select('QA60').gt(0)
+    # cloud_mask = image.select('QA_PIXEL').gt(0)
+    qa = image.select('QA_PIXEL')
+    cloud_bit_mask = 1 << 3
+    cloud_mask = qa.bitwiseAnd(cloud_bit_mask).neq(0)
 
     # Compute the total number of pixels in the ROI
     total_pixels = cloud_mask.reduceRegion(
@@ -172,7 +291,7 @@ def get_cloud_percentage(image, roi):
         geometry=roi,
         scale=30,
         bestEffort=True
-    ).get('QA60')
+    ).get('QA_PIXEL')
 
     # Compute the number of cloudy pixels in the ROI
     cloud_pixels = cloud_mask.reduceRegion(
@@ -180,7 +299,7 @@ def get_cloud_percentage(image, roi):
         geometry=roi,
         scale=30,
         bestEffort=True
-    ).get('QA60')
+    ).get('QA_PIXEL')
 
     # Handle cases where no valid pixels exist
     total_pixels = ee.Algorithms.If(ee.Algorithms.IsEqual(total_pixels, None), ee.Number(1), total_pixels)
@@ -205,7 +324,7 @@ def get_snow_percentage(image, roi):
 
     # Compute the Normalized Difference Snow Index (NDSI)
     # NDSI = (Green - SWIR) / (Green + SWIR)
-    ndsi = image.normalizedDifference(['B3', 'B11']).rename('NDSI')
+    ndsi = image.normalizedDifference(['SR_B3', 'SR_B6']).rename('NDSI')
 
     # Define the snow threshold (commonly used threshold: NDSI > 0.4)
     snow_mask = ndsi.gt(0.4)
