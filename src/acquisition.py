@@ -168,7 +168,7 @@ def process_sentinel2_data(roi, start_year, end_year, SUMMER_START, SUMMER_END,
     # Remove duplicate tiles by keeping only the first occurrence of each MGRS_TILE per date
     def set_date_tile_property(image):
         date = ee.Date(image.get('system:time_start')).format('YYYY-MM-DD')
-        return image.set('date_tile', ee.String(date).cat('_').cat(image.get('MGRS_TILE')))
+        return image.set('date_tile', ee.String(date).cat('_').cat(image.get('LANDSAT_PRODUCT_ID')))
 
     final_collection = final_collection.map(set_date_tile_property)
 
