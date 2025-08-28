@@ -1,5 +1,5 @@
 import ee # type: ignore
-
+import tempfile
 # def get_sentinel2_collection(roi, cloud_cover_max=10):
 #     """
 #     Fetch Sentinel-2 Harmonized collection with cloud filtering.
