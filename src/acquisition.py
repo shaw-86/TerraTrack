@@ -1,4 +1,5 @@
 import ee # type: ignore
+import geemap
 import tempfile
 import zipfile
 import os
