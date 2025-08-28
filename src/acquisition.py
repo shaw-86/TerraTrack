@@ -183,7 +183,30 @@ def process_sentinel2_data(roi, start_year, end_year, SUMMER_START, SUMMER_END,
 
     return final_collection, morpho
 
-
+def get_shp_from_zip(zip_path):
+    """
+    从指定的 zip 文件中获取 .shp 文件并转换为 GEE FeatureCollection
+    使用临时目录避免干扰原来的 shapefile 文件夹
+    """
+    # 创建临时目录
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # 解压 zip 文件到临时目录
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(tmpdir)
+        
+        # 找到临时目录里的 .shp 文件
+        shp_files = [os.path.join(tmpdir, f) for f in os.listdir(tmpdir) if f.endswith(".shp")]
+        
+        if not shp_files:
+            raise FileNotFoundError(f"{zip_path} 中没有找到 .shp 文件")
+        
+        shapefile_path = shp_files[0]  # 如果有多个 .shp，可以修改逻辑选择
+        
+        # 转为 GEE FeatureCollection
+        roi = geemap.shp_to_ee(shapefile_path)
+        
+        # 返回 GEE FeatureCollection 和 .shp 文件路径
+        return roi, shapefile_path
 # def get_cloud_percentage(image, roi):
 #     """
 #     Computes the percentage of clouds inside the ROI using the QA60 cloud mask.
