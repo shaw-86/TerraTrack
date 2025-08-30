@@ -80,14 +80,6 @@ def get_landsat_collection(roi, cloud_cover_max=20):
     finalCol_safe = finalCol.map(lambda img: safe_select_bands(img, bands_to_keep))
 
     return finalCol_safe
-
-# ------------------ 调试输出 ------------------
-roi = ee.FeatureCollection('projects/remote-sengsing/assets/huapo_location')
-collection = get_landsat_collection(roi)
-print("影像数量:", collection.size().getInfo())
-first_img = collection.first()
-print("第一张影像波段:", first_img.bandNames().getInfo())
-
 # def get_sentinel2_collection(roi, cloud_cover_max=10):
 #     """
 #     Fetch Sentinel-2 Harmonized collection with cloud filtering.
