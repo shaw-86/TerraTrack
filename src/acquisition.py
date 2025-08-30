@@ -72,6 +72,10 @@ def get_sentinel2_collection(roi, cloud_cover_max=20):
     # ------------------ 安全选择波段 ------------------
     # 只选择存在于所有影像中的波段
     def safe_select_bands(image, bands):
+        # 增加类型检查，确保处理的是Image对象
+        if isinstance(image, ee.Feature):
+            # 如果是Feature，尝试提取其中的影像属性
+            image = ee.Image(image.get('image'))
         existing_bands = image.bandNames()
         valid_bands = ee.List(bands).filter(lambda b: existing_bands.contains(b))
         return image.select(valid_bands)
