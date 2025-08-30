@@ -68,7 +68,7 @@ def get_sentinel2_collection(roi, cloud_cover_max=20):
 
     # 去掉同日期重复
     finalCol = sorted_col.distinct(['system:time_start'])
-
+    finalCol = ee.ImageCollection(sorted_col.distinct(['system:time_start']))
     # ------------------ 安全选择波段 ------------------
     # 只选择存在于所有影像中的波段
     def safe_select_bands(image, bands):
