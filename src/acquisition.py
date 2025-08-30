@@ -84,7 +84,7 @@ import os
 #     finalCol_safe = finalCol.map(lambda img: safe_select_bands(img, bands_to_keep))
 
 #     return finalCol_safe
-def get_landsat_collection(roi, cloud_cover_max=10):
+def get_sentinel2_collection(roi, cloud_cover_max=10):
     """
     Fetch combined Landsat 7 and 8 collection with cloud filtering and band harmonization
     without adding custom properties
