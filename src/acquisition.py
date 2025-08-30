@@ -34,56 +34,111 @@ import os
 #     water_mask = ndwi.gt(0)
 #     masked_image = image.updateMask(water_mask.Not())
 #     return masked_image.addBands(ndwi)
-def addSensorL8(img):
-    return img.set('sensor', 'LC08')
+# def addSensorL8(img):
+#     return img.set('sensor', 'LC08')
 
-def addSensorL7(img):
-    return img.set('sensor', 'LE07')
+# def addSensorL7(img):
+#     return img.set('sensor', 'LE07')
 
-# ------------------ Landsat7 波段重命名成 Landsat8 ------------------
-def renameLandsat7_to_L8names(image):
-    return image.select(
-        ['SR_B3', 'SR_B2', 'SR_B1', 'SR_B4', 'SR_B5', 'SR_B7', 'QA_PIXEL'],  # Landsat7 原波段
-        ['SR_B4', 'SR_B3', 'SR_B2', 'SR_B5', 'SR_B6', 'SR_B7', 'QA_PIXEL']   # 对应 Landsat8 名称
+# # ------------------ Landsat7 波段重命名成 Landsat8 ------------------
+# def renameLandsat7_to_L8names(image):
+#     return image.select(
+#         ['SR_B3', 'SR_B2', 'SR_B1', 'SR_B4', 'SR_B5', 'SR_B7', 'QA_PIXEL'],  # Landsat7 原波段
+#         ['SR_B4', 'SR_B3', 'SR_B2', 'SR_B5', 'SR_B6', 'SR_B7', 'QA_PIXEL']   # 对应 Landsat8 名称
+#     )
+
+# # ------------------ 获取 Landsat 合并集合 ------------------
+# def get_sentinel2_collection(roi, cloud_cover_max=20):
+#     # Landsat 8
+#     l8 = (ee.ImageCollection('LANDSAT/LC08/C02/T1_L2')
+#           .filterBounds(roi)
+#           .filter(ee.Filter.lt('CLOUD_COVER_LAND', cloud_cover_max))
+#           .map(addSensorL8))
+
+#     # Landsat 7
+#     l7 = (ee.ImageCollection('LANDSAT/LE07/C02/T1_L2')
+#           .filterBounds(roi)
+#           .filter(ee.Filter.lt('CLOUD_COVER_LAND', cloud_cover_max))
+#           .map(renameLandsat7_to_L8names)
+#           .map(addSensorL7))
+
+#     # 合并 + 排序
+#     merged = l7.merge(l8)
+#     sorted_col = merged.sort('sensor', False).sort('system:time_start')
+
+#     # 去掉同日期重复
+#     finalCol = sorted_col.distinct(['system:time_start'])
+#     finalCol = ee.ImageCollection(sorted_col.distinct(['system:time_start']))
+#     # ------------------ 安全选择波段 ------------------
+#     # 只选择存在于所有影像中的波段
+#     def safe_select_bands(image, bands):
+#         # 增加类型检查，确保处理的是Image对象
+#         if isinstance(image, ee.Feature):
+#             # 如果是Feature，尝试提取其中的影像属性
+#             image = ee.Image(image.get('image'))
+#         existing_bands = image.bandNames()
+#         valid_bands = ee.List(bands).filter(ee.Filter.inList('item', existing_bands))
+#         return image.select(valid_bands)
+
+#     bands_to_keep = ['SR_B4', 'SR_B3', 'SR_B2', 'SR_B5', 'SR_B6', 'SR_B7', 'QA_PIXEL']
+#     finalCol_safe = finalCol.map(lambda img: safe_select_bands(img, bands_to_keep))
+
+#     return finalCol_safe
+def get_landsat_collection(roi, cloud_cover_max=10):
+    """
+    Fetch combined Landsat 7 and 8 collection with cloud filtering and band harmonization
+    without adding custom properties
+    """
+    # Landsat 8 collection (priority 1)
+    l8 = ee.ImageCollection('LANDSAT/LC08/C02/T1_L2') \
+        .filterBounds(roi) \
+        .filter(ee.Filter.lt('CLOUD_COVER_LAND', cloud_cover_max)) \
+        .select(['SR_B4', 'SR_B3', 'SR_B2', 'SR_B5', 'SR_B6', 'QA_PIXEL'], 
+                ['B4', 'B3', 'B2', 'B8', 'B11', 'QA60'])
+
+    # Landsat 7 collection (priority 0) with band renaming
+    l7 = ee.ImageCollection('LANDSAT/LE07/C02/T1_L2') \
+        .filterBounds(roi) \
+        .filter(ee.Filter.lt('CLOUD_COVER_LAND', cloud_cover_max)) \
+        .select(['SR_B3', 'SR_B2', 'SR_B1', 'SR_B4', 'SR_B5', 'QA_PIXEL'], 
+                ['B4', 'B3', 'B2', 'B8', 'B11', 'QA60'])  # Band mapping to match L8
+
+    # Merge collections
+    combined = l7.merge(l8)
+    
+    # Create a time filter to group images by day
+    def group_by_day(img):
+        # Convert time to start of day in milliseconds
+        start_of_day = ee.Date(img.date()).update(hour=0, minute=0, second=0).millis()
+        return img.set('time_group', start_of_day)
+    
+    # Apply grouping
+    grouped = combined.map(group_by_day)
+    
+    # Define join to get best image per day (L8 preferred)
+    join = ee.Join.maxDifference(difference=1000 * 60 * 60 * 24)  # 1 day difference
+    save_best = ee.Join.saveBest(
+        matchKey='best_image',
+        measureKey='time_group',
+        outer=False
     )
-
-# ------------------ 获取 Landsat 合并集合 ------------------
-def get_sentinel2_collection(roi, cloud_cover_max=20):
-    # Landsat 8
-    l8 = (ee.ImageCollection('LANDSAT/LC08/C02/T1_L2')
-          .filterBounds(roi)
-          .filter(ee.Filter.lt('CLOUD_COVER_LAND', cloud_cover_max))
-          .map(addSensorL8))
-
-    # Landsat 7
-    l7 = (ee.ImageCollection('LANDSAT/LE07/C02/T1_L2')
-          .filterBounds(roi)
-          .filter(ee.Filter.lt('CLOUD_COVER_LAND', cloud_cover_max))
-          .map(renameLandsat7_to_L8names)
-          .map(addSensorL7))
-
-    # 合并 + 排序
-    merged = l7.merge(l8)
-    sorted_col = merged.sort('sensor', False).sort('system:time_start')
-
-    # 去掉同日期重复
-    finalCol = sorted_col.distinct(['system:time_start'])
-    finalCol = ee.ImageCollection(sorted_col.distinct(['system:time_start']))
-    # ------------------ 安全选择波段 ------------------
-    # 只选择存在于所有影像中的波段
-    def safe_select_bands(image, bands):
-        # 增加类型检查，确保处理的是Image对象
-        if isinstance(image, ee.Feature):
-            # 如果是Feature，尝试提取其中的影像属性
-            image = ee.Image(image.get('image'))
-        existing_bands = image.bandNames()
-        valid_bands = ee.List(bands).filter(ee.Filter.inList('item', existing_bands))
-        return image.select(valid_bands)
-
-    bands_to_keep = ['SR_B4', 'SR_B3', 'SR_B2', 'SR_B5', 'SR_B6', 'SR_B7', 'QA_PIXEL']
-    finalCol_safe = finalCol.map(lambda img: safe_select_bands(img, bands_to_keep))
-
-    return finalCol_safe
+    
+    # Create a dummy collection for days
+    distinct_days = ee.FeatureCollection(
+        grouped.aggregate_array('time_group').distinct().map(
+            lambda t: ee.Feature(None, {'time_group': t})
+        )
+    )
+    
+    # Apply join to get best image per day
+    joined = save_best.apply(distinct_days, grouped, 
+                           ee.Filter.equals(leftField='time_group', rightField='time_group'))
+    
+    # Convert to image collection
+    def extract_image(feature):
+        return ee.Image(feature.get('best_image'))
+    
+    return ee.ImageCollection(joined.map(extract_image))
 # def get_sentinel2_collection(roi, cloud_cover_max=10):
 #     """
 #     Fetch Sentinel-2 Harmonized collection with cloud filtering.
