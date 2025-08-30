@@ -103,8 +103,8 @@ def get_sentinel2_collection(roi, cloud_cover_max=10):
         .select(['SR_B3', 'SR_B2', 'SR_B1', 'SR_B4', 'SR_B5', 'QA_PIXEL'], 
                 ['B4', 'B3', 'B2', 'B8', 'B11', 'QA60'])  # Band mapping to match L8
 
-    # Merge collections
-    combined = l7.merge(l8)
+    # Merge collections - L8 first so it has priority
+    combined = l8.merge(l7)
     
     # Create a time filter to group images by day
     def group_by_day(img):
@@ -115,13 +115,11 @@ def get_sentinel2_collection(roi, cloud_cover_max=10):
     # Apply grouping
     grouped = combined.map(group_by_day)
     
-    # Define join to get best image per day (L8 preferred)
-    join = ee.Join.maxDifference(difference=1000 * 60 * 60 * 24)  # 1 day difference
-    save_best = ee.Join.saveBest(
-        matchKey='best_image',
-        measureKey='time_group',
-        outer=False
-    )
+    # Create a filter for the join
+    filter = ee.Filter.equals(leftField='time_group', rightField='time_group')
+    
+    # Define join to get the first image per day (L8 preferred because it's first in the collection)
+    save_best = ee.Join.saveFirst(matchKey='best_image')
     
     # Create a dummy collection for days
     distinct_days = ee.FeatureCollection(
@@ -131,8 +129,7 @@ def get_sentinel2_collection(roi, cloud_cover_max=10):
     )
     
     # Apply join to get best image per day
-    joined = save_best.apply(distinct_days, grouped, 
-                           ee.Filter.equals(leftField='time_group', rightField='time_group'))
+    joined = save_best.apply(distinct_days, grouped, filter)
     
     # Convert to image collection
     def extract_image(feature):
