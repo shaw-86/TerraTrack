@@ -63,10 +63,12 @@ def get_sentinel2_collection(roi, cloud_cover_max=10):
 
         # 合并 + 排序（LC08 优先）
         merged = l7.merge(l8)
+        print('合并合集)
         sorted_col = merged.sort('sensor', False).sort('system:time_start')
 
         # 去掉同日期重复
         finalCol = sorted_col.distinct('system:time_start')
+        print(finalCol.getInfo())
 
         # 选择最终波段
         return finalCol.select(['SR_B4', 'SR_B3', 'SR_B2', 'SR_B5', 'SR_B6', 'QA_PIXEL'])
