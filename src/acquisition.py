@@ -48,7 +48,7 @@ def renameLandsat7_to_L8names(image):
     )
 
 # ------------------ 获取 Landsat 合并集合 ------------------
-def get_landsat_collection(roi, cloud_cover_max=20):
+def get_sentinel2_collection(roi, cloud_cover_max=20):
     # Landsat 8
     l8 = (ee.ImageCollection('LANDSAT/LC08/C02/T1_L2')
           .filterBounds(roi)
