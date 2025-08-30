@@ -69,7 +69,7 @@ def get_sentinel2_collection(roi, cloud_cover_max=10):
         finalCol = sorted_col.distinct('system:time_start')
 
         # 选择最终波段
-        return finalCol.select(['SR_B4', 'SR_B3', 'SR_B2', 'SR_B5', 'SR_B6', 'SR_B7', 'QA_PIXEL'])
+        return finalCol.select(['SR_B4', 'SR_B3', 'SR_B2', 'SR_B5', 'SR_B6', 'QA_PIXEL'])
 # def get_sentinel2_collection(roi, cloud_cover_max=10):
 #     """
 #     Fetch Sentinel-2 Harmonized collection with cloud filtering.
