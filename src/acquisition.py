@@ -34,15 +34,51 @@ import os
 #     water_mask = ndwi.gt(0)
 #     masked_image = image.updateMask(water_mask.Not())
 #     return masked_image.addBands(ndwi)
+def addSensorL8(img):
+    return img.set('sensor', 'LC08')
+
+
+def addSensorL7(img):
+    return img.set('sensor', 'LE07')
+
+
+def renameLandsat7_to_L8names(image):
+    return image.select(
+        ['SR_B3', 'SR_B2', 'SR_B1', 'SR_B4', 'SR_B5', 'SR_B7', 'QA_PIXEL'],
+        ['SR_B4', 'SR_B3', 'SR_B2', 'SR_B5', 'SR_B6', 'SR_B7', 'QA_PIXEL']
+    )
 def get_sentinel2_collection(roi, cloud_cover_max=10):
-    """
-    Fetch Sentinel-2 Harmonized collection with cloud filtering.
-    """
-    return ee.ImageCollection('LANDSAT/LC08/C02/T1_L2') \
-        .filterBounds(roi) \
-        .filter(ee.Filter.lt('CLOUD_COVER_LAND', cloud_cover_max)) \
-        .select(['SR_B4', 'SR_B3', 'SR_B2', 'SR_B5', 'SR_B6', 'QA_PIXEL'])
-# select(['B4', 'B3', 'B2', 'B8', 'B11', 'QA60'])
+        # Landsat 8
+        l8 = (ee.ImageCollection('LANDSAT/LC08/C02/T1_L2')
+              .filterBounds(roi)
+              .filter(ee.Filter.lt('CLOUD_COVER_LAND', cloud_cover_max))
+              .map(addSensorL8))
+
+        # Landsat 7
+        l7 = (ee.ImageCollection('LANDSAT/LE07/C02/T1_L2')
+              .filterBounds(roi)
+              .filter(ee.Filter.lt('CLOUD_COVER_LAND', cloud_cover_max))
+              .map(renameLandsat7_to_L8names)
+              .map(addSensorL7))
+
+        # 合并 + 排序（LC08 优先）
+        merged = l7.merge(l8)
+        sorted_col = merged.sort('sensor', False).sort('system:time_start')
+
+        # 去掉同日期重复
+        finalCol = sorted_col.distinct('system:time_start')
+
+        # 选择最终波段
+        return finalCol.select(['SR_B4', 'SR_B3', 'SR_B2', 'SR_B5', 'SR_B6', 'SR_B7', 'QA_PIXEL'])
+# def get_sentinel2_collection(roi, cloud_cover_max=10):
+#     """
+#     Fetch Sentinel-2 Harmonized collection with cloud filtering.
+#     """
+#     return ee.ImageCollection('LANDSAT/LC08/C02/T1_L2') \
+#         .filterBounds(roi) \
+#         .filter(ee.Filter.lt('CLOUD_COVER_LAND', cloud_cover_max)) \
+#         .select(['SR_B4', 'SR_B3', 'SR_B2', 'SR_B5', 'SR_B6', 'QA_PIXEL'])
+# # select(['B4', 'B3', 'B2', 'B8', 'B11', 'QA60'])
 
 def check_full_coverage(image, roi, error_margin=10):
     """
