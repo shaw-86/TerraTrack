@@ -77,7 +77,7 @@ def get_sentinel2_collection(roi, cloud_cover_max=20):
             # 如果是Feature，尝试提取其中的影像属性
             image = ee.Image(image.get('image'))
         existing_bands = image.bandNames()
-        valid_bands = ee.List(bands).filter(lambda b: existing_bands.contains(b))
+        valid_bands = ee.List(bands).filter(ee.Filter.inList('item', existing_bands))
         return image.select(valid_bands)
 
     bands_to_keep = ['SR_B4', 'SR_B3', 'SR_B2', 'SR_B5', 'SR_B6', 'SR_B7', 'QA_PIXEL']
