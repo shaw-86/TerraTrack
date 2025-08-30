@@ -37,41 +37,57 @@ import os
 def addSensorL8(img):
     return img.set('sensor', 'LC08')
 
-
 def addSensorL7(img):
     return img.set('sensor', 'LE07')
 
-
+# ------------------ Landsat7 波段重命名成 Landsat8 ------------------
 def renameLandsat7_to_L8names(image):
     return image.select(
-        ['SR_B3', 'SR_B2', 'SR_B1', 'SR_B4', 'SR_B5', 'SR_B7', 'QA_PIXEL'],
-        ['SR_B4', 'SR_B3', 'SR_B2', 'SR_B5', 'SR_B6', 'SR_B7', 'QA_PIXEL']
+        ['SR_B3', 'SR_B2', 'SR_B1', 'SR_B4', 'SR_B5', 'SR_B7', 'QA_PIXEL'],  # Landsat7 原波段
+        ['SR_B4', 'SR_B3', 'SR_B2', 'SR_B5', 'SR_B6', 'SR_B7', 'QA_PIXEL']   # 对应 Landsat8 名称
     )
-def get_sentinel2_collection(roi, cloud_cover_max=10):
-        # Landsat 8
-        l8 = (ee.ImageCollection('LANDSAT/LC08/C02/T1_L2')
-              .filterBounds(roi)
-              .filter(ee.Filter.lt('CLOUD_COVER_LAND', cloud_cover_max))
-              .map(addSensorL8))
 
-        # Landsat 7
-        l7 = (ee.ImageCollection('LANDSAT/LE07/C02/T1_L2')
-              .filterBounds(roi)
-              .filter(ee.Filter.lt('CLOUD_COVER_LAND', cloud_cover_max))
-              .map(renameLandsat7_to_L8names)
-              .map(addSensorL7))
+# ------------------ 获取 Landsat 合并集合 ------------------
+def get_landsat_collection(roi, cloud_cover_max=20):
+    # Landsat 8
+    l8 = (ee.ImageCollection('LANDSAT/LC08/C02/T1_L2')
+          .filterBounds(roi)
+          .filter(ee.Filter.lt('CLOUD_COVER_LAND', cloud_cover_max))
+          .map(addSensorL8))
 
-        # 合并 + 排序（LC08 优先）
-        merged = l7.merge(l8)
-        print('合并合集')
-        sorted_col = merged.sort('sensor', False).sort('system:time_start')
+    # Landsat 7
+    l7 = (ee.ImageCollection('LANDSAT/LE07/C02/T1_L2')
+          .filterBounds(roi)
+          .filter(ee.Filter.lt('CLOUD_COVER_LAND', cloud_cover_max))
+          .map(renameLandsat7_to_L8names)
+          .map(addSensorL7))
 
-        # 去掉同日期重复
-        finalCol = sorted_col.distinct('system:time_start')
-        print(finalCol.getInfo())
+    # 合并 + 排序
+    merged = l7.merge(l8)
+    sorted_col = merged.sort('sensor', False).sort('system:time_start')
 
-        # 选择最终波段
-        return finalCol.select(['SR_B4', 'SR_B3', 'SR_B2', 'SR_B5', 'SR_B6', 'QA_PIXEL'])
+    # 去掉同日期重复
+    finalCol = sorted_col.distinct(['system:time_start'])
+
+    # ------------------ 安全选择波段 ------------------
+    # 只选择存在于所有影像中的波段
+    def safe_select_bands(image, bands):
+        existing_bands = image.bandNames()
+        valid_bands = ee.List(bands).filter(lambda b: existing_bands.contains(b))
+        return image.select(valid_bands)
+
+    bands_to_keep = ['SR_B4', 'SR_B3', 'SR_B2', 'SR_B5', 'SR_B6', 'SR_B7', 'QA_PIXEL']
+    finalCol_safe = finalCol.map(lambda img: safe_select_bands(img, bands_to_keep))
+
+    return finalCol_safe
+
+# ------------------ 调试输出 ------------------
+roi = ee.FeatureCollection('projects/remote-sengsing/assets/huapo_location')
+collection = get_landsat_collection(roi)
+print("影像数量:", collection.size().getInfo())
+first_img = collection.first()
+print("第一张影像波段:", first_img.bandNames().getInfo())
+
 # def get_sentinel2_collection(roi, cloud_cover_max=10):
 #     """
 #     Fetch Sentinel-2 Harmonized collection with cloud filtering.
